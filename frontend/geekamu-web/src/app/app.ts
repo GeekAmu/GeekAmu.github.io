@@ -29,6 +29,10 @@ export class App {
     this.theme.update(t => (t === 'dark' ? 'light' : 'dark'));
   }
 
+  protected scrollToServices(): void {
+    this.doc.getElementById('services')?.scrollIntoView({ behavior: 'smooth' });
+  }
+
   private applyTheme(theme: 'dark' | 'light'): void {
     this.doc.documentElement.classList.toggle('light', theme === 'light');
   }
