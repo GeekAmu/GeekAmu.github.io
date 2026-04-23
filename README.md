@@ -1,45 +1,65 @@
-# GeekAmu Website Deployment Guide
+# GeekAmu GitHub Pages Setup
 
 This repository contains an Angular site in `frontend/geekamu-web`.
 
-## Free Hosting Options
+This guide shows how to:
+- Run the project locally with npm
+- Publish it to GitHub Pages
+- Point `geekamu.com` to the published site
 
-### 1) GitHub Pages (Free, easiest if code is on GitHub)
-- Cost: Free for public repos, free for private with limits on some plans.
-- Best for: Static Angular site with simple deployment from GitHub Actions.
-- URL style: `https://<username>.github.io/<repo>/` (project site) or custom domain.
+## 1) Create the GitHub Pages Repository
 
-### 2) Cloudflare Pages (Free tier is generous)
-- Cost: Free tier includes build + global CDN.
-- Best for: Fast global delivery, custom domains, and simple Git integration.
-- URL style: `https://<project>.pages.dev` or custom domain.
+For an organization site, the repository must be named exactly:
+- `GeekAmu/GeekAmu.github.io`
 
-### 3) Netlify (Free starter tier)
-- Cost: Free starter tier.
-- Best for: Quick setup with branch previews and easy environment variables.
-- URL style: `https://<site-name>.netlify.app` or custom domain.
+If you keep this project in a different repository name, GitHub Pages can still work as a project site, but for the cleanest setup with `geekamu.com`, use the org site repo name above.
 
-### 4) Vercel (Hobby plan is free)
-- Cost: Free hobby plan.
-- Best for: Fast setup, previews, and easy static deploys.
-- URL style: `https://<project>.vercel.app` or custom domain.
+## 2) Run and Build the Site Locally
 
----
+From repo root:
 
-## CI/CD Baseline (Recommended For All Options)
+```bash
+cd frontend/geekamu-web
+npm ci
+npm run start
+```
 
-Create `.github/workflows/ci.yml`:
+Then open `http://localhost:4200`.
+
+Production build:
+
+```bash
+cd frontend/geekamu-web
+npm ci
+npm run build -- --configuration production
+```
+
+Build output is generated in:
+- `frontend/geekamu-web/dist/geekamu-web/browser`
+
+## 3) Add GitHub Actions CI/CD for Pages
+
+Create `.github/workflows/deploy-pages.yml` in the repo root:
 
 ```yaml
-name: CI
+name: Deploy GeekAmu Site
 
 on:
-  pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,132 +75,62 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/geekamu-web/package-lock.json
 
-      - name: Install dependencies
+      - name: Install
         run: npm ci
 
       - name: Build
         run: npm run build -- --configuration production
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-dist
-          path: frontend/geekamu-web/dist/geekamu-web/browser
-```
+      - name: Add CNAME
+        run: echo "geekamu.com" > dist/geekamu-web/browser/CNAME
 
-This gives you:
-- Build validation on every PR and push
-- A reusable deployment artifact (`web-dist`)
-- A clean base you can extend with provider-specific deploy jobs
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
----
-
-## Option A: GitHub Pages With CI/CD
-
-1. In GitHub repo settings, enable Pages source: **GitHub Actions**.
-2. Add `.github/workflows/deploy-github-pages.yml`:
-
-```yaml
-name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend/geekamu-web
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/geekamu-web/package-lock.json
-
-      - run: npm ci
-      - run: npm run build -- --configuration production --base-href "/GeekAmu-Website/"
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/geekamu-web/dist/geekamu-web/browser
-      - uses: actions/deploy-pages@v4
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
 ```
 
-3. Push to `main`. GitHub Pages will deploy automatically.
-4. If using a custom domain, set CNAME in Pages settings.
+## 4) Enable GitHub Pages in Repository Settings
 
----
+In `GeekAmu/GeekAmu.github.io`:
+1. Go to **Settings -> Pages**
+2. Under **Build and deployment**, choose **GitHub Actions**
+3. Save
 
-## Option B: Cloudflare Pages With CI/CD
+Push to `main` to trigger deployment.
 
-### Fastest setup (no YAML needed)
-1. In Cloudflare Pages, connect this GitHub repo.
-2. Build command: `npm run build -- --configuration production`
-3. Build output directory: `frontend/geekamu-web/dist/geekamu-web/browser`
-4. Root directory: `frontend/geekamu-web`
-5. Auto-deploy from `main`.
+## 5) Redirect/Point `geekamu.com` to GitHub Pages
 
-### GitHub Actions deploy (optional)
-Use `cloudflare/wrangler-action` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets to publish on pushes to `main`.
+Your DNS is currently on DigitalOcean nameservers. In DigitalOcean DNS for `geekamu.com`, set:
 
----
+- `A` record for `@` -> `185.199.108.153`
+- `A` record for `@` -> `185.199.109.153`
+- `A` record for `@` -> `185.199.110.153`
+- `A` record for `@` -> `185.199.111.153`
+- `CNAME` record for `www` -> `GeekAmu.github.io`
 
-## Option C: Netlify With CI/CD
+Remove old `A` records that point to your droplet/server IP.
 
-### Fastest setup (no YAML needed)
-1. Import repo into Netlify.
-2. Base directory: `frontend/geekamu-web`
-3. Build command: `npm run build -- --configuration production`
-4. Publish directory: `dist/geekamu-web/browser`
-5. Auto-deploy from `main`.
+Then in GitHub Pages settings:
+1. Set custom domain to `geekamu.com`
+2. Wait for certificate provisioning
+3. Enable **Enforce HTTPS**
 
-### GitHub Actions deploy (optional)
-Use `netlify/actions/cli` with:
-- `NETLIFY_AUTH_TOKEN`
-- `NETLIFY_SITE_ID`
+## 6) Verify It Works
 
-Deploy command example:
-`netlify deploy --dir=frontend/geekamu-web/dist/geekamu-web/browser --prod`
+Use:
+- `nslookup geekamu.com`
+- `nslookup www.geekamu.com`
 
----
+Then test:
+- `https://geekamu.com`
+- `https://www.geekamu.com`
 
-## Option D: Vercel With CI/CD
-
-### Fastest setup (no YAML needed)
-1. Import repo in Vercel.
-2. Framework preset: Angular (or Other if needed).
-3. Root directory: `frontend/geekamu-web`
-4. Build command: `npm run build -- --configuration production`
-5. Output directory: `dist/geekamu-web/browser`
-
-### GitHub Actions deploy (optional)
-Use Vercel CLI with:
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
-
----
-
-## Recommended Path
-
-For this project, choose one of these:
-- **Simplest:** Cloudflare Pages or Netlify Git integration (fewest moving parts)
-- **Most GitHub-native:** GitHub Pages + Actions workflow above
-
-If you want, the next step is to add the actual `.github/workflows/*.yml` files directly in this repo for your selected platform.
+If DNS is still propagating, it can take up to 24 hours, but often updates sooner.
