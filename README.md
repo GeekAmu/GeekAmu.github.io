@@ -1,136 +1,120 @@
-# GeekAmu GitHub Pages Setup
+# GeekAmu Website
 
-This repository contains an Angular site in `frontend/geekamu-web`.
+Angular site hosted on Cloudflare Pages at `geekamu.com`.
 
-This guide shows how to:
-- Run the project locally with npm
-- Publish it to GitHub Pages
-- Point `geekamu.com` to the published site
+- Production: `main` branch → `geekamu.com`
+- Staging: `staging` branch → `staging.geekamu-web.pages.dev`
 
-## 1) Create the GitHub Pages Repository
+---
 
-For an organization site, the repository must be named exactly:
-- `GeekAmu/GeekAmu.github.io`
-
-If you keep this project in a different repository name, GitHub Pages can still work as a project site, but for the cleanest setup with `geekamu.com`, use the org site repo name above.
-
-## 2) Run and Build the Site Locally
-
-From repo root:
+## Run Locally
 
 ```bash
 cd frontend/geekamu-web
 npm ci
-npm run start
+npm start
 ```
 
-Then open `http://localhost:4200`.
+Open `http://localhost:4200`.
 
-Production build:
+---
+
+## Hosting: Cloudflare Pages
+
+Cloudflare Pages handles all builds and deployments automatically when connected to this GitHub repo. No deploy scripts needed — just push to a branch.
+
+### 1) Create a Cloudflare Pages project
+
+1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) and log in (or create a free account).
+2. In the left sidebar, click **Workers & Pages**, then **Create** → **Pages**.
+3. Click **Connect to Git** and authorize Cloudflare to access your GitHub account.
+4. Select this repository (`GeekAmu/GeekAmu-Website` or whatever it's named).
+5. Click **Begin setup**.
+
+### 2) Configure the build settings
+
+| Setting | Value |
+|---|---|
+| Production branch | `main` |
+| Framework preset | None (leave blank) |
+| Root directory | `frontend/geekamu-web` |
+| Build command | `npm run build -- --configuration production` |
+| Build output directory | `dist/geekamu-web/browser` |
+
+Click **Save and Deploy**. Cloudflare will run the first build immediately.
+
+### 3) Set up the staging branch
+
+Cloudflare Pages automatically deploys every branch to a unique preview URL. To make `staging` a permanent environment:
+
+1. In the Cloudflare Pages project, go to **Settings** → **Builds & deployments**.
+2. Under **Branch deployments**, make sure **All non-production branches** (or at minimum `staging`) is enabled.
+3. Create a `staging` branch in git if it doesn't exist:
 
 ```bash
-cd frontend/geekamu-web
-npm ci
-npm run build -- --configuration production
+git checkout -b staging
+git push origin staging
 ```
 
-Build output is generated in:
-- `frontend/geekamu-web/dist/geekamu-web/browser`
+Every push to `staging` will now auto-deploy to:
+`https://staging.geekamu-web.pages.dev`
 
-## 3) Add GitHub Actions CI/CD for Pages
+You can also alias it to `staging.geekamu.com` — see step 6 below.
 
-Create `.github/workflows/deploy-pages.yml` in the repo root:
+---
 
-```yaml
-name: Deploy GeekAmu Site
+## Point geekamu.com to Cloudflare Pages
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+### Step 4) Move DNS to Cloudflare (recommended)
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+Moving DNS to Cloudflare is free and unlocks CDN, DDoS protection, and automatic HTTPS.
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
+1. In [dash.cloudflare.com](https://dash.cloudflare.com), click **Add a site**, enter `geekamu.com`, and choose the **Free** plan.
+2. Cloudflare will scan and import your existing DNS records. Review them — keep anything you need (MX records for email, etc.).
+3. Cloudflare will give you two nameservers, e.g.:
+   ```
+   aria.ns.cloudflare.com
+   bob.ns.cloudflare.com
+   ```
+4. Log in to your domain registrar (wherever you bought `geekamu.com`) and replace the existing nameservers with the two Cloudflare ones.
+5. Wait for propagation — usually 15 minutes to a few hours.
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend/geekamu-web
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+> If your DNS is currently managed at DigitalOcean, you are updating nameservers at your **registrar**, not at DigitalOcean. DigitalOcean is just where the records live now; your registrar is where you bought the domain.
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/geekamu-web/package-lock.json
+### Step 5) Add geekamu.com as a custom domain in Cloudflare Pages
 
-      - name: Install
-        run: npm ci
+1. In your Cloudflare Pages project, go to **Custom domains**.
+2. Click **Set up a custom domain** and enter `geekamu.com`.
+3. Also add `www.geekamu.com` and set it to redirect to `geekamu.com`.
+4. Because your DNS is now on Cloudflare, it will automatically add the required DNS records. Click **Activate domain**.
 
-      - name: Build
-        run: npm run build -- --configuration production
+Cloudflare handles SSL automatically — HTTPS will be active within a few minutes.
 
-      - name: Add CNAME
-        run: echo "geekamu.com" > dist/geekamu-web/browser/CNAME
+### Step 6) (Optional) Add staging.geekamu.com
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+1. In Cloudflare Pages → **Custom domains**, click **Set up a custom domain**.
+2. Enter `staging.geekamu.com`.
+3. Cloudflare will add a DNS record pointing it to your staging branch deployment.
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: frontend/geekamu-web/dist/geekamu-web/browser
+---
 
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+## Verify
+
+After DNS propagates:
+
+```bash
+nslookup geekamu.com
+nslookup www.geekamu.com
 ```
 
-## 4) Enable GitHub Pages in Repository Settings
+Then confirm in a browser:
+- `https://geekamu.com` → production site
+- `https://staging.geekamu.com` → staging site (after step 6)
 
-In `GeekAmu/GeekAmu.github.io`:
-1. Go to **Settings -> Pages**
-2. Under **Build and deployment**, choose **GitHub Actions**
-3. Save
+---
 
-Push to `main` to trigger deployment.
+## CI
 
-## 5) Redirect/Point `geekamu.com` to GitHub Pages
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs a production build on every push to `main` and `staging`, and on every pull request. This catches build errors before Cloudflare deploys.
 
-Your DNS is currently on DigitalOcean nameservers. In DigitalOcean DNS for `geekamu.com`, set:
-
-- `A` record for `@` -> `185.199.108.153`
-- `A` record for `@` -> `185.199.109.153`
-- `A` record for `@` -> `185.199.110.153`
-- `A` record for `@` -> `185.199.111.153`
-- `CNAME` record for `www` -> `GeekAmu.github.io`
-
-Remove old `A` records that point to your droplet/server IP.
-
-Then in GitHub Pages settings:
-1. Set custom domain to `geekamu.com`
-2. Wait for certificate provisioning
-3. Enable **Enforce HTTPS**
-
-## 6) Verify It Works
-
-Use:
-- `nslookup geekamu.com`
-- `nslookup www.geekamu.com`
-
-Then test:
-- `https://geekamu.com`
-- `https://www.geekamu.com`
-
-If DNS is still propagating, it can take up to 24 hours, but often updates sooner.
+Cloudflare Pages also runs its own build — the CI workflow is a fast pre-check so you catch failures in GitHub before they reach Cloudflare.
