@@ -95,17 +95,16 @@
 }
 
 .logo {
-  max-width: 200px;
+  max-width: 260px;
   width: 100%;
   margin-bottom: 1.5rem;
-  border-radius: 1rem;
 }
 
 h1 {
   font-size: clamp(2rem, 6vw, 4rem);
   font-weight: 700;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--color-accent), var(--color-cta));
+  background: linear-gradient(90deg, var(--color-tag), var(--color-accent), var(--color-cta));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
